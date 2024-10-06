@@ -66,8 +66,8 @@ Simply download or clone the repository and include the `InterruptDispatcher.h` 
 ```bash
 git clone https://github.com/miracoli/avr-compile-time-interrupt-dispatcher.git
 ```
-Define your interrupt handler(s) (see above). 
-Then, add the following to your project:
+Define your interrupt handler(s) (see above). Make sure to disable the usage of standard start files and add your own startup code.
+An example for the AVR128DA28 looks like this:
 
 ```cpp
 #include "InterruptDispatcher.h"
@@ -77,6 +77,26 @@ template class InterruptDispatcher<YOUR_INTERRUPT_HANDLER>;
 ISR(BADISR_vect) {
   while (1) { // Change to your needs
   }
+}
+
+extern "C" void __dtors_end();
+
+void reset(void) __attribute__((used, naked));
+
+void reset(void) {
+  asm("clr r1");
+  SREG = 0;
+  SP = RAMEND;
+  goto *&__dtors_end;
+}
+
+extern "C" void _exit();
+
+void jmp_main(void) __attribute__((used, naked, section(".init9")));
+
+void jmp_main(void) {
+  main();
+  goto *&_exit;
 }
 
 ```
