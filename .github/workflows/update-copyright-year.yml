@@ -1,4 +1,4 @@
-name: Update copyright year in license file
+name: License year updater            
 
 on:
   schedule:
@@ -26,4 +26,3 @@ jobs:
           commit-message: Update copyright year
           branch: update-copyright-year
           delete-branch: true
-          token: ${{ secrets.GITHUB_TOKEN }}  # Ensure that the GITHUB_TOKEN is used to authenticate
