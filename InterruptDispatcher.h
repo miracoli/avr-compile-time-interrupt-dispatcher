@@ -1,6 +1,21 @@
 #ifndef INTERRUPTDISPATCHER_H_
 #define INTERRUPTDISPATCHER_H_
 
+/*
+ * Copyright (c) 2024 Dirk Petrautzki
+ *
+ * This software is released under the MIT License.
+ * https://opensource.org/licenses/MIT
+ *
+ * Description: Header-only library for compile-time interrupt dispatching on AVR microcontrollers.
+ *
+ * Author: Dirk Petrautzki
+ * Email: dirk@dirk-petrautzki.de
+ *
+ * This code is provided as-is, without any warranty. 
+ * You may use, modify, and distribute it under the terms of the MIT License.
+ */
+
 typedef void (*InterruptVectFuncPtr)();  // Define a function pointer type for interrupt vectors
 
 // Declare existing external interrupt vector functions
