@@ -5,6 +5,9 @@ on:
     - cron: '0 3 1 1 *'
   workflow_dispatch:  # This allows manual triggering of the workflow
 
+permissions:
+  contents: write
+
 jobs:
   run:
     runs-on: ubuntu-latest
