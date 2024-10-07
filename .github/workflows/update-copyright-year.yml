@@ -6,9 +6,20 @@ on:
   workflow_dispatch:  # This allows manual triggering of the workflow
 
 permissions:
-  contents: write-all
+  contents: write
   pull-requests: write
   repository-projects: write
+  actions: write
+  attestations: write
+  checks: write
+  deployments: write
+  discussions: write
+  issues: write
+  packages: write
+  pages: write
+  security-events: write
+  statuses: write
+  id-token: write
 
 jobs:
   run:
