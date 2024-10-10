@@ -105,12 +105,7 @@ void jmp_main(void) {
 
 Contributions are welcome! If you have suggestions or improvements, feel free to open an issue or submit a pull request.
 
-### Steps to Contribute:
-1. Fork this repository.
-2. Create a new branch (`git checkout -b feature/your-feature`).
-3. Commit your changes (`git commit -m 'Add a new feature'`).
-4. Push to the branch (`git push origin feature/your-feature`).
-5. Open a pull request.
+See the [CONTRIBUTING.md](CONTRIBUTING.md) file for more details.
 
 ## License
 
