@@ -1,0 +1,21 @@
+name: Build AVR128DA
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install AVR GCC
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-avr avr-libc
+
+      - name: Compile example
+        run: |
+          avr-g++ -mmcu=avr128da28 -std=c++20 -Os -Werror -c tests/compile_test.cpp -o compile_test.o
