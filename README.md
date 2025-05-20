@@ -101,6 +101,20 @@ void jmp_main(void) {
 
 ```
 
+## Development
+
+This project provides a Git pre-commit hook that formats staged C++ files using
+`clang-format`. The hook relies on the style defined in `.clang-format` which is
+based on the Google C++ style guide.
+
+Enable the hook with:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Once configured, `clang-format` will run automatically before each commit.
+
 ## Contributing
 
 Contributions are welcome! If you have suggestions or improvements, feel free to open an issue or submit a pull request.
