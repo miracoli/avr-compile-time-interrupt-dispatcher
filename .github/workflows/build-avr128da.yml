@@ -1,0 +1,25 @@
+name: Build AVR128DA
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install AVR GCC
+        run: |
+          AVR_GCC_URL=https://github.com/ZakKemble/avr-gcc-build/releases/download/v14.1.0-1/avr-gcc-14.1.0-x64-linux.tar.bz2
+          sudo apt-get update
+          sudo apt-get install -y wget tar
+          wget -q $AVR_GCC_URL
+          sudo tar -xjf avr-gcc-14.1.0-x64-linux.tar.bz2 -C /usr/local
+          echo "/usr/local/avr-gcc/bin" >> $GITHUB_PATH
+
+      - name: Compile example
+        run: |
+          avr-g++ -mmcu=avr128da28 -std=c++20 -Os -Werror -c tests/compile_test.cpp -o compile_test.o
