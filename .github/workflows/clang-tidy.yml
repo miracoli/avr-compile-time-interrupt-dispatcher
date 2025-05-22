@@ -20,5 +20,7 @@ jobs:
       - name: Run clang-tidy
         run: |
           clang-tidy tests/compile_test.cpp -- \
-            -mmcu=avr128da28 -std=c++20 \
+            --target=avr-unknown-unknown \
+            -D_VECTOR_SIZE=4 -D_VECTORS_SIZE=164 -D_AVR_AVR128DA28_H_INCLUDED=1 \
+            -std=c++20 \
             -I. -I$(pwd)/avr-gcc-14.1.0-x64-linux/avr/include
