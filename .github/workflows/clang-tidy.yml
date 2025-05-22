@@ -21,6 +21,6 @@ jobs:
         run: |
           clang-tidy tests/compile_test.cpp -- \
             --target=avr-unknown-unknown \
-            -D_VECTOR_SIZE=4 -D_VECTORS_SIZE=164 -D_AVR_AVR128DA28_H_INCLUDED=1 -D__AVR_ARCH__=103 \
+            -D_VECTOR_SIZE=4 -D_VECTORS_SIZE=164 -D_AVR_AVR128DA28_H_INCLUDED=1 -D__AVR_ARCH__=103 -DCLANG_TIDY_RUNNING=1 \
             -std=c++20 \
             -I. -I$(pwd)/avr-gcc-14.1.0-x64-linux/avr/include
