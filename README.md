@@ -115,6 +115,9 @@ git config core.hooksPath .githooks
 
 Once configured, `clang-format` will run automatically before each commit.
 
+Clang-Tidy is executed in the GitHub Actions workflow to catch common
+mistakes. The checks are configured in `.clang-tidy`.
+
 ## Contributing
 
 Contributions are welcome! If you have suggestions or improvements, feel free to open an issue or submit a pull request.

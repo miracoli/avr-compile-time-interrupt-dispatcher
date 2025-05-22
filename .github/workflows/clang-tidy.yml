@@ -1,0 +1,26 @@
+name: clang-tidy
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install AVR GCC 14.1.0
+        run: |
+          wget -q https://github.com/ZakKemble/avr-gcc-build/releases/download/v14.1.0-1/avr-gcc-14.1.0-x64-linux.tar.bz2
+          tar -xf avr-gcc-14.1.0-x64-linux.tar.bz2
+          echo "$(pwd)/avr-gcc-14.1.0-x64-linux/bin" >> "$GITHUB_PATH"
+
+      - name: Run clang-tidy
+        run: |
+          clang-tidy tests/compile_test.cpp -- \
+            --target=avr-unknown-unknown \
+            -D_VECTOR_SIZE=4 -D_VECTORS_SIZE=164 -D_AVR_AVR128DA28_H_INCLUDED=1 -D__AVR_ARCH__=103 -DCLANG_TIDY_RUNNING=1 \
+            -std=c++20 \
+            -I. -I$(pwd)/avr-gcc-14.1.0-x64-linux/avr/include

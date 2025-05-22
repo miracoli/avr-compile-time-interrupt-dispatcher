@@ -42,7 +42,11 @@ class InterruptDispatcher {
 
   // Declare the vectors function as naked (no prologue/epilogue)
   // This is the entry point for the interrupt vector table
+  #ifndef CLANG_TIDY_RUNNING
   static __attribute__((section(".vectors"))) void vectors(void) __attribute__((naked)) {
+  #else
+  static __attribute__((section(".vectors"))) void vectors(void) { // Naked attribute removed for clang-tidy
+  #endif
     generateVectorTable(); // Generate the vector table starting from the reset vector
   }
 
