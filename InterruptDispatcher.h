@@ -54,11 +54,11 @@ class InterruptDispatcher {
   template<InterruptHandler CurrentHandler, InterruptHandler ... RemainingHandlers>
   static consteval InterruptVectFuncPtr dispatch(unsigned int vectNum) {
     if (vectNum == 0) {
-      &return reset; // If the vectNum is 0 return the reset vector 
+      return &reset; // If the vectNum is 0 return the reset vector 
     }
     // Check if the current handler can handle the interrupt
     if (CurrentHandler::canHandleVectNum(vectNum)) {
-      &return CurrentHandler::__vector; // If it can, return the corresponding vector
+      return &CurrentHandler::__vector; // If it can, return the corresponding vector
     }
     // If the current handler can't handle it, recurse to check the remaining handlers
     if constexpr (sizeof...(RemainingHandlers) > 0) {
