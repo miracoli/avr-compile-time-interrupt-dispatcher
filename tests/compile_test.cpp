@@ -6,7 +6,7 @@ public:
     static constexpr bool canHandleVectNum(unsigned int vectNum) {
         return vectNum == 1;
     }
-    static void __vector() {
+    __attribute__((noreturn)) static void __vector() {
       asm volatile(
         "1:   nop       \n\t"
         "     nop       \n\t"
