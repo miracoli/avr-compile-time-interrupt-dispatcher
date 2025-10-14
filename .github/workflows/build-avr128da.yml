@@ -20,3 +20,20 @@ jobs:
       - name: Compile example
         run: |
           avr-g++ -mmcu=avr128da28 -std=c++20 -Os -Werror -I. -c tests/compile_test.cpp -o compile_test.o
+
+      - name: Verify exact ASM sequence globally
+        run: |
+          # Disassemble the object file produced by the previous step
+          avr-objdump -d compile_test.o > disasm.txt
+
+          echo "Checking for exact sequence: nop -> nop -> rjmp (any spacing/labels allowed)"
+          # GNU grep on ubuntu-latest supports -P and -z; -z lets the regex span newlines
+          if grep -zPq 'nop\s*\n.*nop\s*\n.*rjmp' disasm.txt; then
+            echo "✅ Found exact asm sequence: nop → nop → rjmp"
+          else
+            echo "❌ Expected asm sequence not found."
+            echo "— Nearby lines with 'nop' for debugging —"
+            grep -n -C2 '\bnop\b' disasm.txt || true
+            echo "Full disassembly is saved as disasm.txt"
+            exit 1
+          fi
