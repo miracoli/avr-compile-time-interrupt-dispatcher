@@ -16,6 +16,10 @@
  * You may use, modify, and distribute it under the terms of the MIT License.
  */
 
+#if !defined _VECTOR_SIZE || !defined _VECTORS_SIZE
+#error "Required macros _VECTORS_SIZE and _VECTOR_SIZE are undefined. Include the appropriate device header before this file."
+#endif
+
 using InterruptVectFuncPtr = void (*)(); // Define a function pointer type for interrupt vectors
 
 // Declare existing external interrupt vector functions
