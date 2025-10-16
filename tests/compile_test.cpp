@@ -19,7 +19,7 @@ public:
     }
 };
 
-template class InterruptDispatcher<DummyHandler>;
+template class InterruptDispatcher<false, DummyHandler>;
 
 int main() {
     return 0;

@@ -34,7 +34,7 @@ concept InterruptHandler = requires(T t, unsigned int vectNum) {
 };
 
 // Function to place the vector table into the vectors section
-template<InterruptHandler... InterruptHandlers>
+template<bool USE_RELATIVE_JUMP = false, InterruptHandler... InterruptHandlers>
 class InterruptDispatcher {
  private:
   static constexpr unsigned int VECTORS_NUM  = _VECTORS_SIZE / _VECTOR_SIZE; // total number of interrupts including the reset vector 
@@ -76,7 +76,11 @@ class InterruptDispatcher {
   template<int VECT_NUM = 0>
   static __attribute__((always_inline)) inline void generateVectorTable() {
     // Inline assembly to jump to the dispatch function for the current vector
-    asm volatile("jmp %x0 \n\t" : : "p"(dispatch<InterruptHandlers...>(VECT_NUM)));
+    if constexpr (USE_RELATIVE_JUMP) {
+      asm volatile("rjmp %x0 \n\t nop\n\t" : : "p"(dispatch<InterruptHandlers...>(VECT_NUM)));
+    } else {
+      asm volatile("jmp %x0 \n\t" : : "p"(dispatch<InterruptHandlers...>(VECT_NUM)));
+    }
     // Recursively generate the table for the next vector if within bounds
     if constexpr (VECT_NUM + 1 < VECTORS_NUM) {
       generateVectorTable<VECT_NUM + 1>(); 
