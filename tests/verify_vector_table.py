@@ -11,16 +11,18 @@ from pathlib import Path
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "object_file",
+        "binary",
         type=Path,
-        help="Path to the AVR object file that contains the interrupt vector table.",
+        help=(
+            "Path to the AVR ELF or object file that contains the interrupt vector table."
+        ),
     )
     return parser.parse_args()
 
 
-def load_vectors_section(obj_path: Path) -> list[str]:
+def load_vectors_section(binary_path: Path) -> list[str]:
     result = subprocess.run(
-        ["avr-objdump", "-D", str(obj_path)],
+        ["avr-objdump", "-D", str(binary_path)],
         check=False,
         text=True,
         capture_output=True,
@@ -71,10 +73,10 @@ def classify_symbol(symbol: str) -> str:
 
 def main() -> int:
     args = parse_args()
-    if not args.object_file.exists():
-        raise SystemExit(f"Object file '{args.object_file}' does not exist")
+    if not args.binary.exists():
+        raise SystemExit(f"Input file '{args.binary}' does not exist")
 
-    section_lines = load_vectors_section(args.object_file)
+    section_lines = load_vectors_section(args.binary)
 
     non_empty = next((line for line in section_lines if line.strip()), "")
     if not non_empty.startswith("00000000 "):

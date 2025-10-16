@@ -53,13 +53,13 @@ jobs:
 
       - name: Compile example (${{ matrix.mmcu }})
         run: |
-          avr-g++ -mmcu=${{ matrix.mmcu }} -std=c++20 -Os -Werror -I. -c tests/compile_test.cpp -o compile_test.o
+          avr-g++ -mmcu=${{ matrix.mmcu }} -std=c++20 -Os -Werror -I. -nostartfiles tests/compile_test.cpp -o compile_test.elf
 
       - name: Verify exact ASM sequence globally (${{ matrix.mmcu }})
         run: |
-          # Disassemble the object file produced by the previous step
+          # Disassemble the binary produced by the previous step
           echo "Verifying assembly for ${{ matrix.mmcu }}"
-          avr-objdump -d compile_test.o > disasm.txt
+          avr-objdump -d compile_test.elf > disasm.txt
 
           echo "Checking for exact sequence: nop -> nop -> rjmp (any spacing/labels allowed)"
           # GNU grep on ubuntu-latest supports -P and -z; -z lets the regex span newlines
@@ -75,4 +75,4 @@ jobs:
 
       - name: Verify interrupt vector table layout (${{ matrix.mmcu }})
         run: |
-          python3 tests/verify_vector_table.py compile_test.o
+          python3 tests/verify_vector_table.py compile_test.elf
