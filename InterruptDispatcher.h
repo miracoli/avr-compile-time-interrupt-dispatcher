@@ -80,12 +80,12 @@ class InterruptDispatcher {
       // Insert a NOP so the relative jump occupies the same 4-byte size as an absolute jump,
       // keeping all vector entries uniformly aligned.
       asm volatile(
-        "rjmp %0 \n\t"
+        "rjmp %x0 \n\t"
         "nop \n\t"
         :
         : "p"(dispatch<InterruptHandlers...>(VECT_NUM)));
     } else {
-      asm volatile("jmp %0 \n\t" : : "p"(dispatch<InterruptHandlers...>(VECT_NUM)));
+      asm volatile("jmp %x0 \n\t" : : "p"(dispatch<InterruptHandlers...>(VECT_NUM)));
     }
     // Recursively generate the table for the next vector if within bounds
     if constexpr (VECT_NUM + 1 < VECTORS_NUM) {
