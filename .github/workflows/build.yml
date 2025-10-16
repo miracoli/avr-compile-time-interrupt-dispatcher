@@ -72,3 +72,7 @@ jobs:
             echo "Full disassembly is saved as disasm.txt"
             exit 1
           fi
+
+      - name: Verify interrupt vector table layout (${{ matrix.mmcu }})
+        run: |
+          python3 tests/verify_vector_table.py compile_test.o
