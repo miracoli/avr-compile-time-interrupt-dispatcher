@@ -2,7 +2,7 @@
 #define INTERRUPTDISPATCHER_H_
 
 /*
- * Copyright (c) 2024 Dirk Petrautzki
+ * Copyright (c) 2025 Dirk Petrautzki
  *
  * This software is released under the MIT License.
  * https://opensource.org/licenses/MIT
