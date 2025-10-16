@@ -1,4 +1,4 @@
-name: Build AVR128DA
+name: Build AVR DA and DB
 
 on:
   pull_request:
@@ -8,6 +8,32 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mmcu:
+          - avr32da28
+          - avr32da32
+          - avr32da48
+          - avr64da28
+          - avr64da32
+          - avr64da48
+          - avr64da64
+          - avr128da28
+          - avr128da32
+          - avr128da48
+          - avr128da64
+          - avr32db28
+          - avr32db32
+          - avr32db48
+          - avr64db28
+          - avr64db32
+          - avr64db48
+          - avr64db64
+          - avr128db28
+          - avr128db32
+          - avr128db48
+          - avr128db64
     steps:
       - uses: actions/checkout@v5
 
@@ -17,13 +43,14 @@ jobs:
           tar -xf avr-gcc-14.1.0-x64-linux.tar.bz2
           echo "$(pwd)/avr-gcc-14.1.0-x64-linux/bin" >> "$GITHUB_PATH"
 
-      - name: Compile example
+      - name: Compile example (${{ matrix.mmcu }})
         run: |
-          avr-g++ -mmcu=avr128da28 -std=c++20 -Os -Werror -I. -c tests/compile_test.cpp -o compile_test.o
+          avr-g++ -mmcu=${{ matrix.mmcu }} -std=c++20 -Os -Werror -I. -c tests/compile_test.cpp -o compile_test.o
 
-      - name: Verify exact ASM sequence globally
+      - name: Verify exact ASM sequence globally (${{ matrix.mmcu }})
         run: |
           # Disassemble the object file produced by the previous step
+          echo "Verifying assembly for ${{ matrix.mmcu }}"
           avr-objdump -d compile_test.o > disasm.txt
 
           echo "Checking for exact sequence: nop -> nop -> rjmp (any spacing/labels allowed)"
