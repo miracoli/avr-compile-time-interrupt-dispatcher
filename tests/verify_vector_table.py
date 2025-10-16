@@ -47,8 +47,8 @@ def load_vectors_section(binary_path: Path) -> tuple[list[str], str]:
             current_section = stripped[len("Disassembly of section ") :].rstrip(":")
             continue
 
-        match = _JMP_RE.search(line)
-        if not match:
+        parsed = parse_jmp_line(line)
+        if not parsed:
             if collecting and stripped.startswith("0"):
                 # Labels such as "00000000 <symbol>:" should not terminate the table.
                 continue
@@ -57,7 +57,7 @@ def load_vectors_section(binary_path: Path) -> tuple[list[str], str]:
                 break
             continue
 
-        address = int(match.group(1), 16)
+        address, _ = parsed
         expected_address = len(section_lines) * 4
 
         if not collecting:
@@ -92,9 +92,20 @@ def load_vectors_section(binary_path: Path) -> tuple[list[str], str]:
     return section_lines, table_section or "<unknown>"
 
 
-_JMP_RE = re.compile(
-    r"^\s*([0-9a-fA-F]+):\s+(?:[0-9a-fA-F]{2}\s+){2,}\s+jmp\s+(?:0x)?[0-9a-fA-F]+\s+<([^>]+)>"
+_JMP_PREFIX_RE = re.compile(
+    r"^\s*([0-9a-fA-F]+):\s+(?:[0-9a-fA-F]{2}\s+){2,}\s+jmp\b", re.IGNORECASE
 )
+
+
+def parse_jmp_line(line: str) -> tuple[int, str] | None:
+    match = _JMP_PREFIX_RE.match(line)
+    if not match:
+        return None
+
+    address = int(match.group(1), 16)
+    symbols = re.findall(r"<([^>]+)>", line)
+    symbol = symbols[-1] if symbols else ""
+    return address, symbol
 
 
 def classify_symbol(symbol: str) -> str:
@@ -116,11 +127,10 @@ def main() -> int:
 
     entries = []
     for line in section_lines:
-        match = _JMP_RE.search(line)
-        if not match:
+        parsed = parse_jmp_line(line)
+        if not parsed:
             continue
-        address = int(match.group(1), 16)
-        symbol = match.group(2)
+        address, symbol = parsed
         entries.append((address, symbol, line))
 
     if not entries:
