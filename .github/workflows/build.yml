@@ -75,4 +75,17 @@ jobs:
 
       - name: Verify interrupt vector table layout (${{ matrix.mmcu }})
         run: |
+          echo "Dumping section headers for debugging"
+          avr-objdump -h compile_test.elf
+          echo
           python3 tests/verify_vector_table.py compile_test.elf
+
+      - name: Upload compile_test artifacts (${{ matrix.mmcu }})
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compile-test-${{ matrix.mmcu }}
+          path: |
+            compile_test.elf
+            disasm.txt
+          if-no-files-found: warn

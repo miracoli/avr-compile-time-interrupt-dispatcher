@@ -42,7 +42,17 @@ def load_vectors_section(binary_path: Path) -> list[str]:
             start_index = idx + 1
             break
     if start_index is None:  # pragma: no cover - defensive
-        raise RuntimeError("Could not find .vectors section in avr-objdump output")
+        headings = [line.strip() for line in lines if line.startswith("Disassembly of section ")]
+        preview = "\n".join(lines[:40])
+        message = ["Could not find .vectors section in avr-objdump output."]
+        if headings:
+            message.append("Found the following section headers:")
+            message.extend(f"  {header}" for header in headings)
+        else:
+            message.append("No disassembly section headers were present in the output.")
+        message.append("First 40 lines of avr-objdump output:")
+        message.append(preview)
+        raise RuntimeError("\n".join(message))
 
     section_lines: list[str] = []
     for line in lines[start_index:]:
