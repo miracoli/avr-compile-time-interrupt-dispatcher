@@ -32,7 +32,10 @@ public:
 };
 
 // Example usage of InterruptDispatcher
-template class InterruptDispatcher<TimerHandler>;
+template class InterruptDispatcher<false, TimerHandler>;
+
+// Pass `true` as the first template argument to emit an `rjmp` + `nop`
+// sequence instead of the default absolute `jmp` instruction.
 ```
 
 ### How to Add More Handlers
@@ -51,7 +54,7 @@ public:
 };
 
 // Combine multiple handlers
-template class InterruptDispatcher<TimerHandler, UARTHandler>;
+template class InterruptDispatcher<false, TimerHandler, UARTHandler>;
 ```
 
 ## Requirements
@@ -72,7 +75,7 @@ An example for the AVR128DA28 looks like this:
 ```cpp
 #include "InterruptDispatcher.h"
 
-template class InterruptDispatcher<YOUR_INTERRUPT_HANDLER>;
+template class InterruptDispatcher<false, YOUR_INTERRUPT_HANDLER>;
 
 ISR(BADISR_vect) {
   while (1) { // Change to your needs
