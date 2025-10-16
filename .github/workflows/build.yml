@@ -37,10 +37,18 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Cache AVR GCC 14.1.0
+        uses: actions/cache@v4
+        with:
+          path: avr-gcc-14.1.0-x64-linux
+          key: avr-gcc-14.1.0-${{ runner.os }}
+
       - name: Install AVR GCC 14.1.0
         run: |
-          wget -q https://github.com/ZakKemble/avr-gcc-build/releases/download/v14.1.0-1/avr-gcc-14.1.0-x64-linux.tar.bz2
-          tar -xf avr-gcc-14.1.0-x64-linux.tar.bz2
+          if [ ! -d avr-gcc-14.1.0-x64-linux ]; then
+            wget -q https://github.com/ZakKemble/avr-gcc-build/releases/download/v14.1.0-1/avr-gcc-14.1.0-x64-linux.tar.bz2
+            tar -xf avr-gcc-14.1.0-x64-linux.tar.bz2
+          fi
           echo "$(pwd)/avr-gcc-14.1.0-x64-linux/bin" >> "$GITHUB_PATH"
 
       - name: Compile example (${{ matrix.mmcu }})
