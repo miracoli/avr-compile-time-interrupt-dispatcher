@@ -37,7 +37,8 @@ def load_vectors_section(binary_path: Path) -> list[str]:
     lines = result.stdout.splitlines()
     start_index = None
     for idx, line in enumerate(lines):
-        if line.strip() == "Disassembly of section .vectors:":
+        stripped = line.strip()
+        if stripped.startswith("Disassembly of section .vectors"):
             start_index = idx + 1
             break
     if start_index is None:  # pragma: no cover - defensive
