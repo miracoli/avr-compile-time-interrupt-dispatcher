@@ -1,0 +1,74 @@
+name: Build AVR DA and DB
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mmcu:
+          - avr32da28
+          - avr32da32
+          - avr32da48
+          - avr64da28
+          - avr64da32
+          - avr64da48
+          - avr64da64
+          - avr128da28
+          - avr128da32
+          - avr128da48
+          - avr128da64
+          - avr32db28
+          - avr32db32
+          - avr32db48
+          - avr64db28
+          - avr64db32
+          - avr64db48
+          - avr64db64
+          - avr128db28
+          - avr128db32
+          - avr128db48
+          - avr128db64
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache AVR GCC 14.1.0
+        uses: actions/cache@v4
+        with:
+          path: avr-gcc-14.1.0-x64-linux
+          key: avr-gcc-14.1.0-${{ runner.os }}
+
+      - name: Install AVR GCC 14.1.0
+        run: |
+          if [ ! -d avr-gcc-14.1.0-x64-linux ]; then
+            wget -q https://github.com/ZakKemble/avr-gcc-build/releases/download/v14.1.0-1/avr-gcc-14.1.0-x64-linux.tar.bz2
+            tar -xf avr-gcc-14.1.0-x64-linux.tar.bz2
+          fi
+          echo "$(pwd)/avr-gcc-14.1.0-x64-linux/bin" >> "$GITHUB_PATH"
+
+      - name: Compile example (${{ matrix.mmcu }})
+        run: |
+          avr-g++ -mmcu=${{ matrix.mmcu }} -std=c++20 -Os -Werror -I. -c tests/compile_test.cpp -o compile_test.o
+
+      - name: Verify exact ASM sequence globally (${{ matrix.mmcu }})
+        run: |
+          # Disassemble the object file produced by the previous step
+          echo "Verifying assembly for ${{ matrix.mmcu }}"
+          avr-objdump -d compile_test.o > disasm.txt
+
+          echo "Checking for exact sequence: nop -> nop -> rjmp (any spacing/labels allowed)"
+          # GNU grep on ubuntu-latest supports -P and -z; -z lets the regex span newlines
+          if grep -zPq 'nop\s*\n.*nop\s*\n.*rjmp' disasm.txt; then
+            echo "✅ Found exact asm sequence: nop → nop → rjmp"
+          else
+            echo "❌ Expected asm sequence not found."
+            echo "— Nearby lines with 'nop' for debugging —"
+            grep -n -C2 '\bnop\b' disasm.txt || true
+            echo "Full disassembly is saved as disasm.txt"
+            exit 1
+          fi
