@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_vectors_section(binary_path: Path) -> list[str]:
+def load_vectors_section(binary_path: Path) -> tuple[list[str], str]:
     result = subprocess.run(
         ["avr-objdump", "-D", str(binary_path)],
         check=False,
@@ -35,16 +35,51 @@ def load_vectors_section(binary_path: Path) -> list[str]:
         )
 
     lines = result.stdout.splitlines()
-    start_index = None
-    for idx, line in enumerate(lines):
+
+    section_lines: list[str] = []
+    current_section = "<unknown>"
+    table_section = ""
+    collecting = False
+
+    for line in lines:
         stripped = line.strip()
-        if stripped.startswith("Disassembly of section .vectors"):
-            start_index = idx + 1
+        if stripped.startswith("Disassembly of section "):
+            current_section = stripped[len("Disassembly of section ") :].rstrip(":")
+            continue
+
+        match = _JMP_RE.search(line)
+        if not match:
+            if collecting and stripped.startswith("0"):
+                # Labels such as "00000000 <symbol>:" should not terminate the table.
+                continue
+            if collecting and stripped:
+                # Encountered the first non-empty, non-JMP line after collecting entries.
+                break
+            continue
+
+        address = int(match.group(1), 16)
+        expected_address = len(section_lines) * 4
+
+        if not collecting:
+            if address != 0:
+                # Ignore JMPs that are not part of the vector table prefix.
+                continue
+            collecting = True
+            table_section = current_section
+        elif address != expected_address:
+            # We've reached a different block of JMP instructions; stop collecting.
             break
-    if start_index is None:  # pragma: no cover - defensive
+
+        section_lines.append(line)
+
+    if not section_lines:  # pragma: no cover - defensive
         headings = [line.strip() for line in lines if line.startswith("Disassembly of section ")]
         preview = "\n".join(lines[:40])
-        message = ["Could not find .vectors section in avr-objdump output."]
+        message = [
+            "Could not identify a vector-table block in avr-objdump output.",
+            "Looked for a dedicated .vectors section and, failing that, for the",
+            "first sequence of JMP instructions starting at address 0.",
+        ]
         if headings:
             message.append("Found the following section headers:")
             message.extend(f"  {header}" for header in headings)
@@ -54,17 +89,7 @@ def load_vectors_section(binary_path: Path) -> list[str]:
         message.append(preview)
         raise RuntimeError("\n".join(message))
 
-    section_lines: list[str] = []
-    for line in lines[start_index:]:
-        if line.startswith("Disassembly of section "):
-            break
-        section_lines.append(line)
-
-    # Strip trailing empty lines that objdump sometimes leaves around.
-    while section_lines and not section_lines[-1].strip():
-        section_lines.pop()
-
-    return section_lines
+    return section_lines, table_section or "<unknown>"
 
 
 _JMP_RE = re.compile(
@@ -87,13 +112,7 @@ def main() -> int:
     if not args.binary.exists():
         raise SystemExit(f"Input file '{args.binary}' does not exist")
 
-    section_lines = load_vectors_section(args.binary)
-
-    non_empty = next((line for line in section_lines if line.strip()), "")
-    if not non_empty.startswith("00000000 "):
-        raise SystemExit(
-            "Expected .vectors to start at address 0, but first line was:\n" + non_empty
-        )
+    section_lines, section_name = load_vectors_section(args.binary)
 
     entries = []
     for line in section_lines:
@@ -105,7 +124,18 @@ def main() -> int:
         entries.append((address, symbol, line))
 
     if not entries:
-        raise SystemExit("Did not find any jmp entries in the .vectors section")
+        raise SystemExit("Did not find any jmp entries while parsing the vector table")
+
+    if entries[0][0] != 0:
+        raise SystemExit(
+            "Expected first vector entry at address 0, but found line:\n" + entries[0][2]
+        )
+
+    if len(entries) < 3:
+        raise SystemExit(
+            "Vector table appears truncated; expected at least 3 entries but "
+            f"found {len(entries)}"
+        )
 
     for index, (address, symbol, line) in enumerate(entries):
         expected_address = index * 4
@@ -130,6 +160,12 @@ def main() -> int:
                 raise SystemExit(
                     f"Vector {index} should jump to __vector_default but line was:\n" + line
                 )
+
+    if section_name != ".vectors":
+        print(
+            "Note: .vectors section not present in disassembly; using sequential JMPs "
+            f"from '{section_name}' as the vector table."
+        )
 
     print(
         f"Validated {len(entries)} interrupt vectors: reset, DummyHandler, and {len(entries) - 2} defaults."
