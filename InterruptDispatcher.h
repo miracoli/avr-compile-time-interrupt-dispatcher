@@ -51,7 +51,17 @@ class InterruptDispatcher {
   #else
   static __attribute__((section(".vectors"))) void vectors(void) { // Naked attribute removed for clang-tidy
   #endif
+    asm volatile(
+      "__vectors_start:\n"
+      :
+      :
+      : "memory");
     generateVectorTable(); // Generate the vector table starting from the reset vector
+    asm volatile(
+      "__vectors_end:\n"
+      :
+      :
+      : "memory");
   }
 
   // Dispatch function to find the correct interrupt handler for the given vector number
