@@ -229,4 +229,4 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except RuntimeError as err:
-        raise SystemExit(str(err))
+        raise SystemExit(str(err)) from err
