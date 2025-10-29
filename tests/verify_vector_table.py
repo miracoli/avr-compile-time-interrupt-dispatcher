@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line options for verifying the interrupt vector table."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "binary",
@@ -36,6 +37,18 @@ DISASSEMBLY_PREFIX = "Disassembly of section "
 def load_vectors_section(
     binary_path: Path, start: int, end: int
 ) -> tuple[list[str], str]:
+    """Load the disassembly lines that contain the interrupt vector table.
+
+    Parameters:
+        binary_path: Path to the AVR ELF/object file.
+        start: Start address of the vector table.
+        end: End address (exclusive) of the vector table.
+
+    Returns:
+        A tuple ``(lines, section_name)`` where ``lines`` is an ordered list of
+        disassembly lines for the table and ``section_name`` identifies the
+        section they originated from.
+    """
     lines = _run_objdump(binary_path)
     relevant_lines, table_section = _collect_vector_lines(lines, start, end)
 
@@ -49,6 +62,17 @@ def load_vectors_section(
 
 
 def _run_objdump(binary_path: Path) -> list[str]:
+    """Execute ``avr-objdump`` and return its stdout split into lines.
+
+    Parameters:
+        binary_path: Path to the binary to disassemble.
+
+    Returns:
+        A list of output lines produced by ``avr-objdump``.
+
+    Raises:
+        RuntimeError: If ``avr-objdump`` exits with a non-zero status.
+    """
     result = subprocess.run(
         ["avr-objdump", "-D", str(binary_path)],
         check=False,
@@ -68,6 +92,17 @@ def _run_objdump(binary_path: Path) -> list[str]:
 def _collect_vector_lines(
     lines: list[str], start: int, end: int
 ) -> tuple[dict[int, str], str]:
+    """Collect vector-table disassembly lines within the provided address range.
+
+    Parameters:
+        lines: Complete list of ``avr-objdump`` output lines.
+        start: Start address of the vector table.
+        end: End address (exclusive) of the vector table.
+
+    Returns:
+        A mapping of addresses to disassembly lines and the name of the section
+        containing the first match.
+    """
     relevant_lines: dict[int, str] = {}
     current_section = "<unknown>"
     table_section = ""
@@ -102,6 +137,7 @@ def _collect_vector_lines(
 
 
 def _extract_section_name(line: str) -> str | None:
+    """Extract the disassembly section name from an ``avr-objdump`` line."""
     stripped = line.strip()
     if stripped.startswith(DISASSEMBLY_PREFIX):
         return stripped[len(DISASSEMBLY_PREFIX) :].rstrip(":")
@@ -111,6 +147,7 @@ def _extract_section_name(line: str) -> str | None:
 def _format_missing_vectors_error(
     lines: list[str], start: int, end: int
 ) -> str:  # pragma: no cover - defensive
+    """Format an error message describing why vector-table lines were not found."""
     headings = [line.strip() for line in lines if line.startswith(DISASSEMBLY_PREFIX)]
     preview = "\n".join(lines[:40])
     message = [
@@ -133,6 +170,19 @@ _NM_VECTOR_RE = re.compile(r"^([0-9a-fA-F]+)\s+\w\s+(__vectors_(?:start|end))$")
 
 
 def locate_vector_bounds(binary_path: Path) -> tuple[int, int]:
+    """Locate ``__vectors_start`` and ``__vectors_end`` using ``avr-nm``.
+
+    Parameters:
+        binary_path: Path to the AVR ELF/object file.
+
+    Returns:
+        A tuple ``(start, end)`` describing the address range of the vector
+        table.
+
+    Raises:
+        RuntimeError: If ``avr-nm`` fails or the expected symbols are missing or
+        inconsistent.
+    """
     result = subprocess.run(
         ["avr-nm", str(binary_path)],
         check=False,
@@ -183,6 +233,15 @@ _JMP_PREFIX_RE = re.compile(
 
 
 def parse_jmp_line(line: str) -> tuple[int, str, str] | None:
+    """Parse a disassembly line containing a JMP/RJMP instruction.
+
+    Parameters:
+        line: Line of disassembly text.
+
+    Returns:
+        ``None`` if the line is not a JMP/RJMP; otherwise a tuple of
+        ``(address, symbol, mnemonic)`` extracted from the line.
+    """
     match = _JMP_PREFIX_RE.match(line)
     if not match:
         return None
@@ -195,6 +254,14 @@ def parse_jmp_line(line: str) -> tuple[int, str, str] | None:
 
 
 def classify_symbol(symbol: str) -> str:
+    """Classify a vector target symbol into ``reset``, ``dummy``, ``default``, or ``other``.
+
+    Parameters:
+        symbol: Symbol extracted from the disassembly.
+
+    Returns:
+        One of ``"reset"``, ``"dummy"``, ``"default"``, or ``"other"``.
+    """
     if symbol.startswith("reset"):
         return "reset"
     if "DummyHandler" in symbol and "__vector" in symbol:
@@ -205,6 +272,14 @@ def classify_symbol(symbol: str) -> str:
 
 
 def ensure_vector_table_starts_at_zero(start: int) -> None:
+    """Ensure that the vector table start address is zero.
+
+    Parameters:
+        start: Resolved ``__vectors_start`` address.
+
+    Raises:
+        SystemExit: If the start address is not zero.
+    """
     if start != 0:
         raise SystemExit(
             "Expected __vectors_start to resolve to address 0 but it was "
@@ -213,6 +288,18 @@ def ensure_vector_table_starts_at_zero(start: int) -> None:
 
 
 def parse_entries(section_lines: Iterable[str]) -> list[tuple[int, str, str, str]]:
+    """Collect JMP/RJMP entries from the vector table disassembly lines.
+
+    Parameters:
+        section_lines: Iterable of lines believed to contain the vector table.
+
+    Returns:
+        A list of tuples ``(address, symbol, mnemonic, original_line)`` for each
+        entry.
+
+    Raises:
+        SystemExit: If no JMP/RJMP entries are found.
+    """
     entries: list[tuple[int, str, str, str]] = []
     for line in section_lines:
         parsed = parse_jmp_line(line)
@@ -228,6 +315,15 @@ def parse_entries(section_lines: Iterable[str]) -> list[tuple[int, str, str, str
 
 
 def ensure_first_entry_matches_start(entries: Sequence[tuple[int, str, str, str]], start: int) -> None:
+    """Ensure the first parsed entry begins at the expected start address.
+
+    Parameters:
+        entries: Sequence of parsed vector entries.
+        start: Expected address of the first entry.
+
+    Raises:
+        SystemExit: If the first entry's address does not match ``start``.
+    """
     if entries[0][0] != start:
         raise SystemExit(
             "Expected first vector entry at address 0, but found line:\n" + entries[0][3]
@@ -235,6 +331,20 @@ def ensure_first_entry_matches_start(entries: Sequence[tuple[int, str, str, str]
 
 
 def compute_entry_size(start: int, end: int, entry_count: int) -> int:
+    """Compute the byte width of each vector-table entry.
+
+    Parameters:
+        start: Start address of the vector table.
+        end: End address (exclusive) of the vector table.
+        entry_count: Number of decoded entries.
+
+    Returns:
+        The size of each entry in bytes (2 or 4).
+
+    Raises:
+        SystemExit: If the entry count does not divide the span, the computed
+        size is non-positive, or it is not 2 or 4 bytes.
+    """
     entry_span = end - start
     if entry_span % entry_count != 0:
         raise SystemExit(
@@ -256,6 +366,14 @@ def compute_entry_size(start: int, end: int, entry_count: int) -> int:
 
 
 def expected_classification(index: int) -> str:
+    """Return the expected classification for a vector-table entry index.
+
+    Parameters:
+        index: Zero-based index into the vector table.
+
+    Returns:
+        ``"reset"`` for index 0, ``"dummy"`` for index 1, ``"default"`` otherwise.
+    """
     if index == 0:
         return "reset"
     if index == 1:
@@ -266,6 +384,17 @@ def expected_classification(index: int) -> str:
 def format_classification_error(
     expected: str, index: int, symbol: str, line: str
 ) -> str:
+    """Return an error message describing an unexpected vector target classification.
+
+    Parameters:
+        expected: Expected classification string.
+        index: Index of the vector entry.
+        symbol: Symbol actually targeted by the entry.
+        line: Original disassembly line.
+
+    Returns:
+        A human-readable description of the mismatch.
+    """
     if expected == "reset":
         return f"Vector 0 should jump to reset but instead targets '{symbol}'"
     if expected == "dummy":
@@ -280,6 +409,18 @@ def validate_entry(
     entry_size: int,
     expected_mnemonic: str,
 ) -> None:
+    """Validate the address, mnemonic, and classification for a single vector entry.
+
+    Parameters:
+        index: Position of the entry in the table.
+        entry: Tuple ``(address, symbol, mnemonic, original_line)``.
+        start: Start address of the vector table.
+        entry_size: Expected byte width of each entry.
+        expected_mnemonic: Required mnemonic (``"jmp"``, ``"rjmp"``, or ``"any"``).
+
+    Raises:
+        SystemExit: If any property of the entry does not match expectations.
+    """
     address, symbol, mnemonic, line = entry
     expected_address = start + index * entry_size
     if address != expected_address:
@@ -305,11 +446,20 @@ def validate_entries(
     entry_size: int,
     expected_mnemonic: str,
 ) -> None:
+    """Validate all parsed vector-table entries against expectations.
+
+    Parameters:
+        entries: Sequence of parsed vector entries.
+        start: Start address of the vector table.
+        entry_size: Expected byte width of each entry.
+        expected_mnemonic: Required mnemonic (``"jmp"``, ``"rjmp"``, or ``"any"``).
+    """
     for index, entry in enumerate(entries):
         validate_entry(index, entry, start, entry_size, expected_mnemonic)
 
 
 def main() -> int:
+    """Execute vector-table validation workflow and print a summary report."""
     args = parse_args()
     if not args.binary.exists():
         raise SystemExit(f"Input file '{args.binary}' does not exist")
