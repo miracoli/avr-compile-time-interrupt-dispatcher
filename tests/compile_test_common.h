@@ -10,6 +10,7 @@ int main();
 
 ISR(BADISR_vect) {
   while (true) {
+    // Here could be a more sophisticated piece of code to handle the bad ISR.
   }
 }
 
