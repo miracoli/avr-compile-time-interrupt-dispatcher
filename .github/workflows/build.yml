@@ -76,7 +76,7 @@ jobs:
           echo "Dumping section headers for debugging"
           avr-objdump -h compile_test_abs.elf
           echo
-          python3 tests/verify_vector_table.py compile_test_abs.elf
+          python3 tests/verify_vector_table.py --expected-mnemonic jmp compile_test_abs.elf
 
       - name: Compile relative-jump example (${{ matrix.mmcu }})
         run: |
@@ -103,7 +103,7 @@ jobs:
           echo "Dumping section headers for debugging"
           avr-objdump -h compile_test_rel.elf
           echo
-          python3 tests/verify_vector_table.py compile_test_rel.elf
+          python3 tests/verify_vector_table.py --expected-mnemonic rjmp compile_test_rel.elf
 
       - name: Upload compile_test artifacts (${{ matrix.mmcu }})
         if: always()

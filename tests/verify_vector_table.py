@@ -17,6 +17,15 @@ def parse_args() -> argparse.Namespace:
             "Path to the AVR ELF or object file that contains the interrupt vector table."
         ),
     )
+    parser.add_argument(
+        "--expected-mnemonic",
+        choices=("jmp", "rjmp", "any"),
+        default="any",
+        help=(
+            "Require every vector-table entry to use the provided jump mnemonic. "
+            "Set to 'any' (the default) to accept either absolute or relative jumps."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -52,7 +61,7 @@ def load_vectors_section(
         if not parsed:
             continue
 
-        address, _ = parsed
+        address, _, _ = parsed
         if start <= address < end:
             relevant_lines[address] = line
             if not table_section:
@@ -116,9 +125,10 @@ def locate_vector_bounds(binary_path: Path) -> tuple[int, int]:
             f"Vector table end {end:#06x} is not greater than start {start:#06x}."
         )
 
-    if (end - start) % 4:
+    span = end - start
+    if span % 2:
         raise RuntimeError(
-            "Vector table size is not a multiple of 4 bytes: "
+            "Vector table size is not a multiple of 2 bytes: "
             f"start={start:#06x}, end={end:#06x}"
         )
 
@@ -126,19 +136,21 @@ def locate_vector_bounds(binary_path: Path) -> tuple[int, int]:
 
 
 _JMP_PREFIX_RE = re.compile(
-    r"^\s*([0-9a-fA-F]+):\s+(?:[0-9a-fA-F]{2}\s+){2,}\s+r?jmp\b", re.IGNORECASE
+    r"^\s*([0-9a-fA-F]+):\s+(?:[0-9a-fA-F]{2}\s+){2,}\s+(r?jmp)\b",
+    re.IGNORECASE,
 )
 
 
-def parse_jmp_line(line: str) -> tuple[int, str] | None:
+def parse_jmp_line(line: str) -> tuple[int, str, str] | None:
     match = _JMP_PREFIX_RE.match(line)
     if not match:
         return None
 
     address = int(match.group(1), 16)
+    mnemonic = match.group(2).lower()
     symbols = re.findall(r"<([^>]+)>", line)
     symbol = symbols[-1] if symbols else ""
-    return address, symbol
+    return address, symbol, mnemonic
 
 
 def classify_symbol(symbol: str) -> str:
@@ -170,30 +182,52 @@ def main() -> int:
         parsed = parse_jmp_line(line)
         if not parsed:
             continue
-        address, symbol = parsed
-        entries.append((address, symbol, line))
+        address, symbol, mnemonic = parsed
+        entries.append((address, symbol, mnemonic, line))
 
     if not entries:
         raise SystemExit("Did not find any jmp entries while parsing the vector table")
 
     if entries[0][0] != start:
         raise SystemExit(
-            "Expected first vector entry at address 0, but found line:\n" + entries[0][2]
+            "Expected first vector entry at address 0, but found line:\n" + entries[0][3]
         )
 
-    expected_entries = (end - start) // 4
-    if len(entries) != expected_entries:
+    entry_span = end - start
+    entry_count = len(entries)
+
+    if entry_span % entry_count != 0:
         raise SystemExit(
-            "Vector table entry count mismatch: expected "
-            f"{expected_entries} entries for range [{start:#06x}, {end:#06x}) "
-            f"but found {len(entries)}"
+            "Vector table entry count mismatch: the span "
+            f"[{start:#06x}, {end:#06x}) is {entry_span} bytes "
+            f"but {entry_count} entries were decoded."
         )
 
-    for index, (address, symbol, line) in enumerate(entries):
-        expected_address = start + index * 4
+    entry_size = entry_span // entry_count
+
+    if entry_size <= 0:
+        raise SystemExit(
+            f"Computed non-positive vector entry size {entry_size} for span {entry_span}."
+        )
+
+    if entry_size not in (2, 4):
+        raise SystemExit(
+            f"Unsupported vector entry size {entry_size}; expected 2 or 4 bytes per entry."
+        )
+
+    expected_mnemonic = args.expected_mnemonic
+
+    for index, (address, symbol, mnemonic, line) in enumerate(entries):
+        expected_address = start + index * entry_size
         if address != expected_address:
             raise SystemExit(
                 f"Vector {index} should be at byte offset {expected_address:#x} but line was:\n{line}"
+            )
+
+        if expected_mnemonic != "any" and mnemonic != expected_mnemonic:
+            raise SystemExit(
+                f"Vector {index} should use the '{expected_mnemonic}' mnemonic but line was:\n"
+                f"{line}"
             )
 
         classification = classify_symbol(symbol)
@@ -219,8 +253,18 @@ def main() -> int:
             f"from '{section_name}' as the vector table."
         )
 
+    summary_mnemonic = (
+        expected_mnemonic.upper() if expected_mnemonic != "any" else "JMP/RJMP"
+    )
+
     print(
-        f"Validated {len(entries)} interrupt vectors: reset, DummyHandler, and {len(entries) - 2} defaults."
+        "Validated {count} interrupt vectors: reset, DummyHandler, "
+        "and {defaults} defaults (using {mnemonic}, {entry_size}-byte slots).".format(
+            count=len(entries),
+            defaults=len(entries) - 2,
+            mnemonic=summary_mnemonic,
+            entry_size=entry_size,
+        )
     )
     return 0
 
