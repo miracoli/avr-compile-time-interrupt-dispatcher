@@ -6,7 +6,7 @@
 int main();
 
 ISR(BADISR_vect) {
-  while (1) {  // Change to your needs
+  while (true) {  // Change to your needs
   }
 }
 
