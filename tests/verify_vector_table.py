@@ -144,7 +144,7 @@ def locate_vector_bounds(binary_path: Path) -> tuple[int, int]:
 
 
 _JMP_PREFIX_RE = re.compile(
-    r"^\s*([0-9a-fA-F]+):\s+(?:[0-9a-fA-F]{2}\s+){2,}\s+(r?jmp)\b",
+    r"^\s*([0-9a-f]+):\s+(?:[0-9a-f]{2}\s+){2,}\s+(r?jmp)\b",
     re.IGNORECASE,
 )
 
