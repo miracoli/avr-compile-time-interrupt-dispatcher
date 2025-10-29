@@ -29,6 +29,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+DISASSEMBLY_PREFIX = "Disassembly of section "
+
+
 def load_vectors_section(
     binary_path: Path, start: int, end: int
 ) -> tuple[list[str], str]:
@@ -53,8 +56,8 @@ def load_vectors_section(
 
     for line in lines:
         stripped = line.strip()
-        if stripped.startswith("Disassembly of section "):
-            current_section = stripped[len("Disassembly of section ") :].rstrip(":")
+        if stripped.startswith(DISASSEMBLY_PREFIX):
+            current_section = stripped[len(DISASSEMBLY_PREFIX) :].rstrip(":")
             continue
 
         parsed = parse_jmp_line(line)
@@ -76,7 +79,7 @@ def load_vectors_section(
                 table_section = current_section
 
     if not relevant_lines:  # pragma: no cover - defensive
-        headings = [line.strip() for line in lines if line.startswith("Disassembly of section ")]
+        headings = [line.strip() for line in lines if line.startswith(DISASSEMBLY_PREFIX)]
         preview = "\n".join(lines[:40])
         message = [
             "Could not identify vector-table JMPs in avr-objdump output.",
