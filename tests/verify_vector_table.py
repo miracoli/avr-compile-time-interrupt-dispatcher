@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import re
 import subprocess
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 
@@ -203,21 +204,16 @@ def classify_symbol(symbol: str) -> str:
     return "other"
 
 
-def main() -> int:
-    args = parse_args()
-    if not args.binary.exists():
-        raise SystemExit(f"Input file '{args.binary}' does not exist")
-
-    start, end = locate_vector_bounds(args.binary)
+def ensure_vector_table_starts_at_zero(start: int) -> None:
     if start != 0:
         raise SystemExit(
             "Expected __vectors_start to resolve to address 0 but it was "
             f"{start:#06x}"
         )
 
-    section_lines, section_name = load_vectors_section(args.binary, start, end)
 
-    entries = []
+def parse_entries(section_lines: Iterable[str]) -> list[tuple[int, str, str, str]]:
+    entries: list[tuple[int, str, str, str]] = []
     for line in section_lines:
         parsed = parse_jmp_line(line)
         if not parsed:
@@ -228,14 +224,18 @@ def main() -> int:
     if not entries:
         raise SystemExit("Did not find any jmp entries while parsing the vector table")
 
+    return entries
+
+
+def ensure_first_entry_matches_start(entries: Sequence[tuple[int, str, str, str]], start: int) -> None:
     if entries[0][0] != start:
         raise SystemExit(
             "Expected first vector entry at address 0, but found line:\n" + entries[0][3]
         )
 
-    entry_span = end - start
-    entry_count = len(entries)
 
+def compute_entry_size(start: int, end: int, entry_count: int) -> int:
+    entry_span = end - start
     if entry_span % entry_count != 0:
         raise SystemExit(
             "Vector table entry count mismatch: the span "
@@ -244,48 +244,88 @@ def main() -> int:
         )
 
     entry_size = entry_span // entry_count
-
     if entry_size <= 0:
         raise SystemExit(
             f"Computed non-positive vector entry size {entry_size} for span {entry_span}."
         )
-
     if entry_size not in (2, 4):
         raise SystemExit(
             f"Unsupported vector entry size {entry_size}; expected 2 or 4 bytes per entry."
         )
+    return entry_size
+
+
+def expected_classification(index: int) -> str:
+    if index == 0:
+        return "reset"
+    if index == 1:
+        return "dummy"
+    return "default"
+
+
+def format_classification_error(
+    expected: str, index: int, symbol: str, line: str
+) -> str:
+    if expected == "reset":
+        return f"Vector 0 should jump to reset but instead targets '{symbol}'"
+    if expected == "dummy":
+        return "Vector 1 should jump to DummyHandler::__vector but line was:\n" + line
+    return f"Vector {index} should jump to __vector_default but line was:\n" + line
+
+
+def validate_entry(
+    index: int,
+    entry: tuple[int, str, str, str],
+    start: int,
+    entry_size: int,
+    expected_mnemonic: str,
+) -> None:
+    address, symbol, mnemonic, line = entry
+    expected_address = start + index * entry_size
+    if address != expected_address:
+        raise SystemExit(
+            f"Vector {index} should be at byte offset {expected_address:#x} but line was:\n{line}"
+        )
+
+    if expected_mnemonic != "any" and mnemonic != expected_mnemonic:
+        raise SystemExit(
+            f"Vector {index} should use the '{expected_mnemonic}' mnemonic but line was:\n"
+            f"{line}"
+        )
+
+    classification = classify_symbol(symbol)
+    expected = expected_classification(index)
+    if classification != expected:
+        raise SystemExit(format_classification_error(expected, index, symbol, line))
+
+
+def validate_entries(
+    entries: Sequence[tuple[int, str, str, str]],
+    start: int,
+    entry_size: int,
+    expected_mnemonic: str,
+) -> None:
+    for index, entry in enumerate(entries):
+        validate_entry(index, entry, start, entry_size, expected_mnemonic)
+
+
+def main() -> int:
+    args = parse_args()
+    if not args.binary.exists():
+        raise SystemExit(f"Input file '{args.binary}' does not exist")
+
+    start, end = locate_vector_bounds(args.binary)
+    ensure_vector_table_starts_at_zero(start)
+
+    section_lines, section_name = load_vectors_section(args.binary, start, end)
+
+    entries = parse_entries(section_lines)
+    ensure_first_entry_matches_start(entries, start)
+
+    entry_size = compute_entry_size(start, end, len(entries))
 
     expected_mnemonic = args.expected_mnemonic
-
-    for index, (address, symbol, mnemonic, line) in enumerate(entries):
-        expected_address = start + index * entry_size
-        if address != expected_address:
-            raise SystemExit(
-                f"Vector {index} should be at byte offset {expected_address:#x} but line was:\n{line}"
-            )
-
-        if expected_mnemonic != "any" and mnemonic != expected_mnemonic:
-            raise SystemExit(
-                f"Vector {index} should use the '{expected_mnemonic}' mnemonic but line was:\n"
-                f"{line}"
-            )
-
-        classification = classify_symbol(symbol)
-        if index == 0:
-            if classification != "reset":
-                raise SystemExit(
-                    f"Vector 0 should jump to reset but instead targets '{symbol}'"
-                )
-        elif index == 1:
-            if classification != "dummy":
-                raise SystemExit(
-                    "Vector 1 should jump to DummyHandler::__vector but line was:\n" + line
-                )
-        else:
-            if classification != "default":
-                raise SystemExit(
-                    f"Vector {index} should jump to __vector_default but line was:\n" + line
-                )
+    validate_entries(entries, start, entry_size, expected_mnemonic)
 
     if section_name != ".vectors":
         print(
