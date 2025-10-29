@@ -195,6 +195,15 @@ def parse_jmp_line(line: str) -> tuple[int, str, str] | None:
 
 
 def classify_symbol(symbol: str) -> str:
+    """
+    Classifies an interrupt vector target symbol into one of "reset", "dummy", "default", or "other".
+    
+    Parameters:
+        symbol (str): Symbol name extracted from disassembly (e.g., the target label inside angle brackets).
+    
+    Returns:
+        str: "reset" if the symbol starts with "reset"; "dummy" if it contains both "DummyHandler" and "__vector"; "default" if it contains "__vector_default"; "other" otherwise.
+    """
     if symbol.startswith("reset"):
         return "reset"
     if "DummyHandler" in symbol and "__vector" in symbol:
@@ -205,6 +214,12 @@ def classify_symbol(symbol: str) -> str:
 
 
 def ensure_vector_table_starts_at_zero(start: int) -> None:
+    """
+    Ensure the interrupt vector table starts at address 0.
+    
+    Raises:
+        SystemExit: if `start` is not 0; the exception message includes the resolved address in hex.
+    """
     if start != 0:
         raise SystemExit(
             "Expected __vectors_start to resolve to address 0 but it was "
@@ -213,6 +228,18 @@ def ensure_vector_table_starts_at_zero(start: int) -> None:
 
 
 def parse_entries(section_lines: Iterable[str]) -> list[tuple[int, str, str, str]]:
+    """
+    Collects JMP/RJMP vector entries from the given disassembly lines.
+    
+    Parameters:
+    	section_lines (Iterable[str]): Lines from the disassembly section that contains the interrupt vector table.
+    
+    Returns:
+    	list[tuple[int, str, str, str]]: A list of parsed entries where each entry is a tuple (address, symbol, mnemonic, original_line).
+    
+    Raises:
+    	SystemExit: If no JMP/RJMP entries are found in the provided lines.
+    """
     entries: list[tuple[int, str, str, str]] = []
     for line in section_lines:
         parsed = parse_jmp_line(line)
@@ -228,6 +255,18 @@ def parse_entries(section_lines: Iterable[str]) -> list[tuple[int, str, str, str
 
 
 def ensure_first_entry_matches_start(entries: Sequence[tuple[int, str, str, str]], start: int) -> None:
+    """
+    Validate that the first parsed vector entry address equals the expected start.
+    
+    Parameters:
+        entries (Sequence[tuple[int, str, str, str]]): Parsed vector entries as tuples
+            (address, symbol, mnemonic, original_line).
+        start (int): Expected start address for the first vector entry.
+    
+    Raises:
+        SystemExit: If the first entry's address does not equal `start`; the exit message
+        includes the offending disassembly line.
+    """
     if entries[0][0] != start:
         raise SystemExit(
             "Expected first vector entry at address 0, but found line:\n" + entries[0][3]
@@ -235,6 +274,17 @@ def ensure_first_entry_matches_start(entries: Sequence[tuple[int, str, str, str]
 
 
 def compute_entry_size(start: int, end: int, entry_count: int) -> int:
+    """
+    Compute the byte size of each vector table entry.
+    
+    Returns:
+        The size in bytes of a single vector table entry (either 2 or 4).
+    
+    Raises:
+        SystemExit: If the total span (end - start) is not evenly divisible by entry_count,
+                    if the computed entry size is not positive, or if the entry size
+                    is not 2 or 4 bytes.
+    """
     entry_span = end - start
     if entry_span % entry_count != 0:
         raise SystemExit(
@@ -256,6 +306,15 @@ def compute_entry_size(start: int, end: int, entry_count: int) -> int:
 
 
 def expected_classification(index: int) -> str:
+    """
+    Determine the expected classification for an interrupt vector given its index.
+    
+    Parameters:
+        index (int): Zero-based index of the vector within the vector table.
+    
+    Returns:
+        str: `'reset'` for index 0, `'dummy'` for index 1, `'default'` for all other indices.
+    """
     if index == 0:
         return "reset"
     if index == 1:
@@ -266,6 +325,18 @@ def expected_classification(index: int) -> str:
 def format_classification_error(
     expected: str, index: int, symbol: str, line: str
 ) -> str:
+    """
+    Format a human-readable error message describing a classification mismatch for a vector table entry.
+    
+    Parameters:
+        expected (str): Expected classification; one of "reset", "dummy", or "default".
+        index (int): Index of the vector table entry.
+        symbol (str): Actual symbol name found at the vector entry.
+        line (str): Original disassembly line associated with the vector entry.
+    
+    Returns:
+        str: A descriptive error message explaining how the actual symbol/line differs from the expected classification.
+    """
     if expected == "reset":
         return f"Vector 0 should jump to reset but instead targets '{symbol}'"
     if expected == "dummy":
@@ -280,6 +351,21 @@ def validate_entry(
     entry_size: int,
     expected_mnemonic: str,
 ) -> None:
+    """
+    Validate a single vector-table entry's address, mnemonic, and symbol classification.
+    
+    Parameters:
+        index (int): Zero-based index of the vector entry within the table.
+        entry (tuple[int, str, str, str]): Parsed entry as (address, symbol, mnemonic, original_line).
+        start (int): Base address of the vector table.
+        entry_size (int): Expected byte size of each vector table entry (2 or 4).
+        expected_mnemonic (str): Required mnemonic ("jmp", "rjmp", or "any").
+    
+    Raises:
+        SystemExit: If the entry's address does not match its expected offset, if the mnemonic
+                    does not match when a specific mnemonic is required, or if the symbol's
+                    classification differs from the expected classification for this index.
+    """
     address, symbol, mnemonic, line = entry
     expected_address = start + index * entry_size
     if address != expected_address:
@@ -305,11 +391,36 @@ def validate_entries(
     entry_size: int,
     expected_mnemonic: str,
 ) -> None:
+    """
+    Validate a sequence of vector table entries against expected addresses, mnemonics, and symbol classifications.
+    
+    Parameters:
+        entries (Sequence[tuple[int, str, str, str]]): Ordered vector entries as tuples of
+            (address, symbol, mnemonic, original_line).
+        start (int): Base address of the vector table.
+        entry_size (int): Size in bytes of each vector entry (expected to be 2 or 4).
+        expected_mnemonic (str): Required jump mnemonic: "jmp", "rjmp", or "any".
+    
+    Raises:
+        SystemExit: If any entry's address, mnemonic (when not "any"), or symbol classification
+        does not match the expected values; the exit message includes the offending line.
+    """
     for index, entry in enumerate(entries):
         validate_entry(index, entry, start, entry_size, expected_mnemonic)
 
 
 def main() -> int:
+    """
+    Validate the interrupt vector table in the specified AVR binary and print a summary report.
+    
+    Performs argument parsing, locates the vector table bounds, extracts and validates each vector entry against the expected jump mnemonic and symbol classifications, and prints a brief validation summary.
+    
+    Returns:
+        0 on success.
+    
+    Raises:
+        SystemExit: If the input file is missing or any validation check fails.
+    """
     args = parse_args()
     if not args.binary.exists():
         raise SystemExit(f"Input file '{args.binary}' does not exist")
