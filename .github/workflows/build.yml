@@ -51,34 +51,59 @@ jobs:
           fi
           echo "$(pwd)/avr-gcc-14.1.0-x64-linux/bin" >> "$GITHUB_PATH"
 
-      - name: Compile example (${{ matrix.mmcu }})
+      - name: Compile absolute-jump example (${{ matrix.mmcu }})
         run: |
-          avr-g++ -mmcu=${{ matrix.mmcu }} -std=c++20 -Os -Werror -I. -nostartfiles tests/compile_test.cpp -o compile_test.elf
+          avr-g++ -mmcu=${{ matrix.mmcu }} -std=c++20 -Os -Werror -I. -nostartfiles tests/compile_test.cpp -o compile_test_abs.elf
 
-      - name: Verify exact ASM sequence globally (${{ matrix.mmcu }})
+      - name: Verify absolute-jump ASM sequence (${{ matrix.mmcu }})
         run: |
-          # Disassemble the binary produced by the previous step
-          echo "Verifying assembly for ${{ matrix.mmcu }}"
-          avr-objdump -d compile_test.elf > disasm.txt
+          echo "Verifying absolute jump assembly for ${{ matrix.mmcu }}"
+          avr-objdump -d compile_test_abs.elf > disasm_abs.txt
 
           echo "Checking for exact sequence: nop -> nop -> rjmp (any spacing/labels allowed)"
-          # GNU grep on ubuntu-latest supports -P and -z; -z lets the regex span newlines
-          if grep -zPq 'nop\s*\n.*nop\s*\n.*rjmp' disasm.txt; then
+          if grep -zPq 'nop\s*\n.*nop\s*\n.*rjmp' disasm_abs.txt; then
             echo "✅ Found exact asm sequence: nop → nop → rjmp"
           else
             echo "❌ Expected asm sequence not found."
             echo "— Nearby lines with 'nop' for debugging —"
-            grep -n -C2 '\bnop\b' disasm.txt || true
-            echo "Full disassembly is saved as disasm.txt"
+            grep -n -C2 '\bnop\b' disasm_abs.txt || true
+            echo "Full disassembly is saved as disasm_abs.txt"
             exit 1
           fi
 
-      - name: Verify interrupt vector table layout (${{ matrix.mmcu }})
+      - name: Verify absolute-jump vector table layout (${{ matrix.mmcu }})
         run: |
           echo "Dumping section headers for debugging"
-          avr-objdump -h compile_test.elf
+          avr-objdump -h compile_test_abs.elf
           echo
-          python3 tests/verify_vector_table.py compile_test.elf
+          python3 tests/verify_vector_table.py compile_test_abs.elf
+
+      - name: Compile relative-jump example (${{ matrix.mmcu }})
+        run: |
+          avr-g++ -mmcu=${{ matrix.mmcu }} -std=c++20 -Os -Werror -I. -nostartfiles tests/compile_test_relative.cpp -o compile_test_rel.elf
+
+      - name: Verify relative-jump ASM sequence (${{ matrix.mmcu }})
+        run: |
+          echo "Verifying relative jump assembly for ${{ matrix.mmcu }}"
+          avr-objdump -d compile_test_rel.elf > disasm_rel.txt
+
+          echo "Checking for exact sequence: nop -> nop -> rjmp (any spacing/labels allowed)"
+          if grep -zPq 'nop\s*\n.*nop\s*\n.*rjmp' disasm_rel.txt; then
+            echo "✅ Found exact asm sequence: nop → nop → rjmp"
+          else
+            echo "❌ Expected asm sequence not found."
+            echo "— Nearby lines with 'nop' for debugging —"
+            grep -n -C2 '\bnop\b' disasm_rel.txt || true
+            echo "Full disassembly is saved as disasm_rel.txt"
+            exit 1
+          fi
+
+      - name: Verify relative-jump vector table layout (${{ matrix.mmcu }})
+        run: |
+          echo "Dumping section headers for debugging"
+          avr-objdump -h compile_test_rel.elf
+          echo
+          python3 tests/verify_vector_table.py compile_test_rel.elf
 
       - name: Upload compile_test artifacts (${{ matrix.mmcu }})
         if: always()
@@ -86,6 +111,8 @@ jobs:
         with:
           name: compile-test-${{ matrix.mmcu }}
           path: |
-            compile_test.elf
-            disasm.txt
+            compile_test_abs.elf
+            disasm_abs.txt
+            compile_test_rel.elf
+            disasm_rel.txt
           if-no-files-found: warn
