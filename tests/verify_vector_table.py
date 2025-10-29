@@ -35,6 +35,19 @@ DISASSEMBLY_PREFIX = "Disassembly of section "
 def load_vectors_section(
     binary_path: Path, start: int, end: int
 ) -> tuple[list[str], str]:
+    lines = _run_objdump(binary_path)
+    relevant_lines, table_section = _collect_vector_lines(lines, start, end)
+
+    if not relevant_lines:  # pragma: no cover - defensive
+        raise RuntimeError(
+            _format_missing_vectors_error(lines, start, end)
+        )
+
+    ordered = [relevant_lines[address] for address in sorted(relevant_lines)]
+    return ordered, table_section or "<unknown>"
+
+
+def _run_objdump(binary_path: Path) -> list[str]:
     result = subprocess.run(
         ["avr-objdump", "-D", str(binary_path)],
         check=False,
@@ -48,16 +61,20 @@ def load_vectors_section(
             "avr-objdump failed:\n" + (stderr or "(no stderr output)")
         )
 
-    lines = result.stdout.splitlines()
+    return result.stdout.splitlines()
 
+
+def _collect_vector_lines(
+    lines: list[str], start: int, end: int
+) -> tuple[dict[int, str], str]:
     relevant_lines: dict[int, str] = {}
     current_section = "<unknown>"
     table_section = ""
 
     for line in lines:
-        stripped = line.strip()
-        if stripped.startswith(DISASSEMBLY_PREFIX):
-            current_section = stripped[len(DISASSEMBLY_PREFIX) :].rstrip(":")
+        section = _extract_section_name(line)
+        if section is not None:
+            current_section = section
             continue
 
         parsed = parse_jmp_line(line)
@@ -65,38 +82,50 @@ def load_vectors_section(
             continue
 
         address, _, _ = parsed
-        if start <= address < end:
-            if table_section and current_section != table_section:
-                # Ignore lookalike JMP/RJMP instructions that live in other sections
-                # (e.g. DWARF debug info).  The first matching section should be the
-                # actual vector table, so once we have locked on to it we drop any
-                # further matches from other sections that just happen to reuse the
-                # same addresses.
-                continue
+        if not (start <= address < end):
+            continue
 
-            relevant_lines[address] = line
-            if not table_section:
-                table_section = current_section
+        if table_section and current_section != table_section:
+            # Ignore lookalike JMP/RJMP instructions that live in other sections
+            # (e.g. DWARF debug info).  The first matching section should be the
+            # actual vector table, so once we have locked on to it we drop any
+            # further matches from other sections that just happen to reuse the
+            # same addresses.
+            continue
 
-    if not relevant_lines:  # pragma: no cover - defensive
-        headings = [line.strip() for line in lines if line.startswith(DISASSEMBLY_PREFIX)]
-        preview = "\n".join(lines[:40])
-        message = [
-            "Could not identify vector-table JMPs in avr-objdump output.",
-            "Expected entries covering the address range "
-            f"[{start:#06x}, {end:#06x}).",
-        ]
-        if headings:
-            message.append("Found the following section headers:")
-            message.extend(f"  {header}" for header in headings)
-        else:
-            message.append("No disassembly section headers were present in the output.")
-        message.append("First 40 lines of avr-objdump output:")
-        message.append(preview)
-        raise RuntimeError("\n".join(message))
+        relevant_lines[address] = line
+        if not table_section:
+            table_section = current_section
 
-    ordered = [relevant_lines[address] for address in sorted(relevant_lines)]
-    return ordered, table_section or "<unknown>"
+    return relevant_lines, table_section
+
+
+def _extract_section_name(line: str) -> str | None:
+    stripped = line.strip()
+    if stripped.startswith(DISASSEMBLY_PREFIX):
+        return stripped[len(DISASSEMBLY_PREFIX) :].rstrip(":")
+    return None
+
+
+def _format_missing_vectors_error(
+    lines: list[str], start: int, end: int
+) -> str:  # pragma: no cover - defensive
+    headings = [line.strip() for line in lines if line.startswith(DISASSEMBLY_PREFIX)]
+    preview = "\n".join(lines[:40])
+    message = [
+        "Could not identify vector-table JMPs in avr-objdump output.",
+        "Expected entries covering the address range ",
+        f"[{start:#06x}, {end:#06x}).",
+    ]
+    if headings:
+        message.append("Found the following section headers:")
+        message.extend(f"  {header}" for header in headings)
+    else:
+        message.append("No disassembly section headers were present in the output.")
+    message.append("First 40 lines of avr-objdump output:")
+    message.append(preview)
+    return "\n".join(message)
+
 
 
 _NM_VECTOR_RE = re.compile(r"^([0-9a-fA-F]+)\s+\w\s+(__vectors_(?:start|end))$")
