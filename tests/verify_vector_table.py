@@ -63,6 +63,14 @@ def load_vectors_section(
 
         address, _, _ = parsed
         if start <= address < end:
+            if table_section and current_section != table_section:
+                # Ignore lookalike JMP/RJMP instructions that live in other sections
+                # (e.g. DWARF debug info).  The first matching section should be the
+                # actual vector table, so once we have locked on to it we drop any
+                # further matches from other sections that just happen to reuse the
+                # same addresses.
+                continue
+
             relevant_lines[address] = line
             if not table_section:
                 table_section = current_section
