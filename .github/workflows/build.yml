@@ -35,7 +35,7 @@ jobs:
           - avr128db48
           - avr128db64
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Cache AVR GCC 14.1.0
         uses: actions/cache@v4
