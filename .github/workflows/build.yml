@@ -107,7 +107,7 @@ jobs:
 
       - name: Upload compile_test artifacts (${{ matrix.mmcu }})
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: compile-test-${{ matrix.mmcu }}
           path: |
