@@ -38,7 +38,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Cache AVR GCC 14.1.0
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: avr-gcc-14.1.0-x64-linux
           key: avr-gcc-14.1.0-${{ runner.os }}
